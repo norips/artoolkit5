@@ -96,7 +96,8 @@ public:
     // Output.
 	ARdouble transformationMatrix[16];		///< Transformation suitable for use in OpenGL
 	ARdouble transformationMatrixR[16];		///< Transformation suitable for use in OpenGL
-	
+    float cornerPoints[8];                  ///< Corner points of detected marker from top left clockwise.
+
 	int patternCount;						///< Number of patterns in this marker (1 for single)
 	ARPattern** patterns;					///< Array of pointers to patterns
 
