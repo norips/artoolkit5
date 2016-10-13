@@ -221,6 +221,10 @@ bool ARMarkerSquare::updateWithDetectedMarkers(ARMarkerInfo* markerInfo, int mar
         if (k != -1) {
             visible = true;
             m_cf = markerInfo[k].cf;
+            for (int c = 0; c < 4; c++) {
+                cornerPoints[c*2] = markerInfo[k].vertex[c][0];
+                cornerPoints[c*2 + 1] = markerInfo[k].vertex[c][1];
+            }
             // If the model is visible, update its transformation matrix
 			if (visiblePrev && useContPoseEstimation) {
 				// If the marker was visible last time, use "cont" version of arGetTransMatSquare

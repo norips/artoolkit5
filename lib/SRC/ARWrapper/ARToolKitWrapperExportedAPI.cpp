@@ -571,6 +571,19 @@ EXPORT_API bool arwQueryMarkerVisibility(int markerUID)
     return marker->visible;
 }
 
+EXPORT_API bool arwQueryMarkerCornerPoints(int markerUID, float points[8])
+{
+    ARMarker *marker;
+
+    if (!gARTK) return false;
+    if (!(marker = gARTK->findMarker(markerUID))) {
+        gARTK->logv(AR_LOG_LEVEL_ERROR, "arwQueryMarkerCornerPoints(): Couldn't locate marker with UID %d.", markerUID);
+        return false;
+    }
+    for (int i = 0; i < 8; i++) points[i] = (float)marker->cornerPoints[i];
+    return marker->visible;
+}
+
 EXPORT_API bool arwQueryMarkerTransformation(int markerUID, float matrix[16])
 {
     ARMarker *marker;
@@ -903,6 +916,7 @@ extern "C" {
 	JNIEXPORT jboolean JNICALL JNIFUNCTION(arwRemoveMarker(JNIEnv *env, jobject obj, jint markerUID));
 	JNIEXPORT jint JNICALL JNIFUNCTION(arwRemoveAllMarkers(JNIEnv *env, jobject obj));
 	JNIEXPORT jboolean JNICALL JNIFUNCTION(arwQueryMarkerVisibility(JNIEnv *env, jobject obj, jint markerUID));
+    JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerCornerPoints(JNIEnv *env, jobject obj, jint markerUID));
 	JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerTransformation(JNIEnv *env, jobject obj, jint markerUID));
 	JNIEXPORT jboolean JNICALL JNIFUNCTION(arwQueryMarkerTransformationStereo(JNIEnv *env, jobject obj, jint markerUID, jfloatArray matrixL, jfloatArray matrixR));
 	JNIEXPORT jint JNICALL JNIFUNCTION(arwGetMarkerPatternCount(JNIEnv *env, jobject obj, int markerUID));
@@ -1126,7 +1140,15 @@ JNIEXPORT jboolean JNICALL JNIFUNCTION(arwQueryMarkerVisibility(JNIEnv *env, job
 	return arwQueryMarkerVisibility(markerUID);
 }
 
-JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerTransformation(JNIEnv *env, jobject obj, jint markerUID)) 
+JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerCornerPoints(JNIEnv *env, jobject obj, jint markerUID))
+{
+    float corners[8];
+
+    if (arwQueryMarkerCornerPoints(markerUID, corners)) return glArrayToJava(env, corners, 8);
+    return NULL;
+}
+
+JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerTransformation(JNIEnv *env, jobject obj, jint markerUID))
 {
 	float trans[16];
     

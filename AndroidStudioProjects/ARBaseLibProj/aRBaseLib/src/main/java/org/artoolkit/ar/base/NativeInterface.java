@@ -285,6 +285,15 @@ public class NativeInterface {
     public static native float[] arwQueryMarkerTransformation(int markerUID);
 
     /**
+     * Retrieves the corner points for the specified marker
+     *
+     * @param markerUID The unique identifier (UID) of the marker to check
+     * @return A float array of size 8 containing the corner points starting at top left (x,y) top right, bottom right, bottom left.
+     *
+     */
+    public static native float[] arwQueryMarkerCornerPoints(int markerUID);
+
+    /**
      * Retrieves the transformation matrix for the specified marker
      *
      * @param markerUID The unique identifier (UID) of the marker to check

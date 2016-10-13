@@ -323,6 +323,18 @@ public class ARToolKit {
         if (!initedNative) return null;
         return NativeInterface.arwQueryMarkerTransformation(markerUID);
     }
+    
+    /**
+     * Retrieves the corner points for the specified marker
+     *
+     * @param markerUID The unique identifier (UID) of the marker to check
+     * @return A float array of size 8 containing the corner points starting at top left (x,y) top right, bottom right, bottom left.
+     *
+     */
+    public float[] arwQueryMarkerCornerPoints(int markerUID) {
+        if (!initedNative) return null;
+        return NativeInterface.arwQueryMarkerCornerPoints(markerUID);
+    }
 
     /**
      * Returns true when video and marker detection are running.
