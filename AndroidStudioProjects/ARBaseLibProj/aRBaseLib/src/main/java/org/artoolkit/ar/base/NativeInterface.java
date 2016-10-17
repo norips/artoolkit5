@@ -302,6 +302,7 @@ public class NativeInterface {
      */
     public static native int arwGetMarkerPatternCount(int markerUID);
 
+
      /**
      * Returns the parameters of the the pattern.
      * <p/>
@@ -314,11 +315,11 @@ public class NativeInterface {
      * boolean ok = NativeInterface.arwGetMarkerPatternCount(markerUID,patternUID,width, height, imageSizeX, imageSizeY);
      *
      * @return True if the values were returned OK, false if there is currently no pattern or an error occurred.
-     * @matrix An float array, matrix of the pattern.
-     * @width An float array, the first element of which will be filled with the width (in pixels) of the video frame, or null if this information is not required.
-     * @height An float array, the first element of which will be filled with the height (in pixels) of the video frame, or null if this information is not required.
-     * @imageSizeX An int array, the first element of which will be filled with the height (in pixels) of the video frame, or null if this information is not required.
-     * @imageSizeY An int array, the first element of which will be filled with the numbers of bytes per pixel of the source frame, or null if this information is not required.
+     * @param matrix An float array, matrix of the pattern.
+     * @param width An float array, the first element of which will be filled with the width (in pixels) of the video frame, or null if this information is not required.
+     * @param height An float array, the first element of which will be filled with the height (in pixels) of the video frame, or null if this information is not required.
+     * @param imageSizeX An int array, the first element of which will be filled with the height (in pixels) of the video frame, or null if this information is not required.
+     * @param imageSizeY An int array, the first element of which will be filled with the numbers of bytes per pixel of the source frame, or null if this information is not required.
      */
     public static native boolean arwGetMarkerPatternConfig(int markerUID,int patternID, float matrix[], float[] width, float[] height, int[] imageSizeX, int[] imageSizeY);
 
