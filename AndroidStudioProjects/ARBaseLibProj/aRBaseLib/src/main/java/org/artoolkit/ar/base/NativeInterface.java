@@ -294,6 +294,35 @@ public class NativeInterface {
     public static native float[] arwQueryMarkerCornerPoints(int markerUID);
 
     /**
+     * Retrieves the number of pattern for the specified marker
+     *
+     * @param markerUID The unique identifier (UID) of the marker to check
+     * @return Number of pattern
+     *
+     */
+    public static native int arwGetMarkerPatternCount(int markerUID);
+
+     /**
+     * Returns the parameters of the the pattern.
+     * <p/>
+     * Usage example:
+     * float[] matrix = new float[16];
+     * float[] width = new float[1];
+     * float[] height = new float[1];
+     * int[] imageSizeX = new int[1];
+     * int[] imageSizeX = new int[1];
+     * boolean ok = NativeInterface.arwGetMarkerPatternCount(markerUID,patternUID,width, height, imageSizeX, imageSizeY);
+     *
+     * @return True if the values were returned OK, false if there is currently no pattern or an error occurred.
+     * @matrix An float array, matrix of the pattern.
+     * @width An float array, the first element of which will be filled with the width (in pixels) of the video frame, or null if this information is not required.
+     * @height An float array, the first element of which will be filled with the height (in pixels) of the video frame, or null if this information is not required.
+     * @imageSizeX An int array, the first element of which will be filled with the height (in pixels) of the video frame, or null if this information is not required.
+     * @imageSizeY An int array, the first element of which will be filled with the numbers of bytes per pixel of the source frame, or null if this information is not required.
+     */
+    public static native boolean arwGetMarkerPatternConfig(int markerUID,int patternID, float matrix[], float[] width, float[] height, int[] imageSizeX, int[] imageSizeY);
+
+    /**
      * Retrieves the transformation matrix for the specified marker
      *
      * @param markerUID The unique identifier (UID) of the marker to check

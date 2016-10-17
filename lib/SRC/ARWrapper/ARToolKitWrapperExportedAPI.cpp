@@ -945,6 +945,8 @@ extern "C" {
     JNIEXPORT jboolean JNICALL JNIFUNCTION(arwGetMarkerOptionBool(JNIEnv *env, jobject obj, jint markerUID, jint option));
     JNIEXPORT jint JNICALL JNIFUNCTION(arwGetMarkerOptionInt(JNIEnv *env, jobject obj, jint markerUID, jint option));
     JNIEXPORT jfloat JNICALL JNIFUNCTION(arwGetMarkerOptionFloat(JNIEnv *env, jobject obj, jint markerUID, jint option));
+    JNIEXPORT jint JNICALL JNIFUNCTION(arwGetMarkerPatternCount(JNIEnv *env, jobject obj, jint markerUID));
+    JNIEXPORT jboolean JNICALL JNIFUNCTION(arwGetMarkerPatternConfig(JNIEnv *env, jobject obj, jint markerUID, jint patternID, jfloatArray matrix, jfloatArray width, jfloatArray height, jintArray imageSizeX, jintArray imageSizeY));
 
 	// Additional Java-specific function not found in the C-API
     JNIEXPORT jboolean JNICALL JNIFUNCTION(arwAcceptVideoImage(JNIEnv *env, jobject obj, jbyteArray pinArray, jint width, jint height, jint cameraIndex, jboolean cameraIsFrontFacing));
@@ -1170,6 +1172,20 @@ JNIEXPORT jboolean JNICALL JNIFUNCTION(arwQueryMarkerTransformationStereo(JNIEnv
 JNIEXPORT jint JNICALL JNIFUNCTION(arwGetMarkerPatternCount(JNIEnv *env, jobject obj, int markerUID)) 
 {
 	return arwGetMarkerPatternCount(markerUID);
+}
+
+JNIEXPORT jboolean JNICALL JNIFUNCTION(arwGetMarkerPatternConfig(JNIEnv *env, jobject obj, jint markerUID, jint patternID, jfloatArray matrix, jfloatArray width, jfloatArray height, jintArray imageSizeX, jintArray imageSizeY)) {
+
+	float w, h;
+	int imsX, imsY;
+	float mat[16];
+
+    if (!arwGetMarkerPatternConfig(markerUID, patternID, mat, &w, &h, &imsX, &imsY)) return false;
+    if (width) env->SetFloatArrayRegion(width, 0, 1, &w);
+    if (height) env->SetFloatArrayRegion(height, 0, 1, &h);
+    if (imageSizeX) env->SetIntArrayRegion(imageSizeX, 0, 1, &imsX);
+    if (imageSizeY) env->SetIntArrayRegion(imageSizeY, 0, 1, &imsY);
+    return true;
 }
 
 JNIEXPORT void JNICALL JNIFUNCTION(arwSetVideoDebugMode(JNIEnv *env, jobject obj, jboolean debug)) 
