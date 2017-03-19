@@ -225,10 +225,16 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
             }
 
             max = -1.0f;
+            int i1; 
             for( jj = -search_size1; jj <= search_size1; jj++ ) {
                 for( ii = -search_size1; ii <= search_size1; ii++ ) {
-
-                    if( ii*ii + jj*jj <= search_size2*search_size2 ) continue;
+                  i1 = search_size2*search_size2 - jj *jj;
+                  ii = sqrt(i1) > search_size1 ? i1 : i1+1;
+                  for (; ii <= search_size1 ; ii++)
+                    /*
+                      El famoso continue loop omg
+                      if( ii*ii + jj*jj <= search_size2*search_size2 ) continue;
+                    */
                     //if( jj >= -search_size2 && jj <= search_size2 && ii >= -search_size2 && ii <= search_size2 ) continue;
 
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
@@ -671,13 +677,30 @@ static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
 
     tp = template;
     sx = sxx = sxy = 0.0f;
+
+#pragma omp parallel for shared(ts1,ts2) firstprivate(tp,ip) reduction(+:sx) reduction(+:sxx) reduction(+:sxy)
     for( j = -ts1; j <= ts2; j++ ) {
+
+      /*
+        i not used inside loop
         ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
         for( i = -ts1; i <= ts2 ; i++ ) {
-            sx += *ip;
-            sxx += *ip * *ip;
-            sxy += *(ip++) * *(tp++);
+        sx += *ip;
+        sxx += *ip * *ip;
+        sxy += *(ip++) * *(tp++);
         }
+      */
+      /* Fu loop */
+      ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
+      sx += *ip * (ts1+ts2+1);
+      sxx += (*ip * *ip) * (ts1+ts2+1);
+      /* El famoso AVX two thousand twelve */
+#pragma omp simd
+      for( i = 0; i <= ts1+ts2  ; i++ ) {
+        sxy += ip[i] * tp[i] ;
+      }
+      ip+=(ts1+ts2+1); tp+=(ts1+ts2+1);
+
     }
     vlen2 = sxx - sx*sx/((ts1+ts2+1)*(ts1+ts2+1));
     if( vlen2 == 0.0f ) return -1;
