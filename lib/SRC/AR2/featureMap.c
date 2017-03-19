@@ -227,7 +227,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
             max = -1.0f;
             int i1; 
             for( jj = -search_size1; jj <= search_size1; jj++ ) {
-                for( ii = -search_size1; ii <= search_size1; ii++ ) {
+              //for( ii = -search_size1; ii <= search_size1; ii++ ) {
                   i1 = search_size2*search_size2 - jj *jj;
                   ii = sqrt(i1) > search_size1 ? i1 : i1+1;
                   for (; ii <= search_size1 ; ii++)
@@ -252,7 +252,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
             }
             *(fp++) = (float)max;
             fp2++;
-        }
+        
         *(fp++) = 1.0f;
         fp2++;
     }
