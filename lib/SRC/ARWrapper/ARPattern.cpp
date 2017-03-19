@@ -125,6 +125,8 @@ bool ARPattern::loadISet(const AR2ImageSetT *imageSet, float nftScale)
         AR2ImageT *image = imageSet->scale[0]; // Assume best scale (largest image) is first entry in array scale[index] (index is in range [0, imageSet->num - 1]).
         m_width = image->xsize * 25.4f / image->dpi * nftScale;
         m_height = image->ysize * 25.4f / image->dpi * nftScale;
+	m_imageSizeX = image->xsize;
+	m_imageSizeY = image->ysize;
     }
     return true;
 }

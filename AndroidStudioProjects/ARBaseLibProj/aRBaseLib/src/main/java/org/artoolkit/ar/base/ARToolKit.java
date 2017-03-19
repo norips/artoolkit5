@@ -325,6 +325,54 @@ public class ARToolKit {
     }
 
     /**
+     * Retrieves the corner points for the specified marker
+     *
+     * @param markerUID The unique identifier (UID) of the marker to check
+     * @return A float array of size 8 containing the corner points starting at top left (x,y) top right, bottom right, bottom left.
+     *
+     */
+    public float[] queryMarkerCornerPoints(int markerUID) {
+        if (!initedNative) return null;
+        return NativeInterface.arwQueryMarkerCornerPoints(markerUID);
+    }
+
+    /**
+     * Retrieves the number of pattern for the specified marker
+     *
+     * @param markerUID The unique identifier (UID) of the marker to check
+     * @return Number of pattern
+     *
+     */
+    public int getMarkerPatternCount(int markerUID) {
+        if (!initedNative) return 0;
+        return NativeInterface.arwGetMarkerPatternCount(markerUID);
+    }
+
+
+     /**
+     * Returns the parameters of the the pattern.
+     * <p/>
+     * Usage example:
+     * float[] matrix = new float[16];
+     * float[] width = new float[1];
+     * float[] height = new float[1];
+     * int[] imageSizeX = new int[1];
+     * int[] imageSizeX = new int[1];
+     * boolean ok = NativeInterface.arwGetMarkerPatternCount(markerUID, patternUID, matrix, width, height, imageSizeX, imageSizeY);
+     *
+     * @return True if the values were returned OK, false if there is currently no pattern or an error occurred.
+     * @param matrix An float array, matrix of the pattern.
+     * @param width An float array of 1 element, the first element of which will be filled with the width (in pixels) of the pattern, or null if this information is not required.
+     * @param height An float array of 1 element, the first element of which will be filled with the height (in pixels) of the pattern, or null if this information is not required.
+     * @param imageSizeX An int array of 1 element, the first element of which will be filled with the height (in pixels) of the pattern, or null if this information is not required.
+     * @param imageSizeY An int array, the first element of which will be filled with the numbers of bytes per pixel of the pattern, or null if this information is not required.
+     */
+    public boolean getMarkerPatternConfig(int markerUID,int patternID, float[] matrix, float[] width, float[] height, int[] imageSizeX, int[] imageSizeY) {
+        if (!initedNative) return false;
+        return NativeInterface.arwGetMarkerPatternConfig(markerUID,patternID,matrix,width,height,imageSizeX,imageSizeY);
+    }
+
+    /**
      * Returns true when video and marker detection are running.
      *
      * @return true when video and marker detection are running, otherwise false

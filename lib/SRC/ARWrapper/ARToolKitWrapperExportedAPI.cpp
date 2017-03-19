@@ -571,6 +571,19 @@ EXPORT_API bool arwQueryMarkerVisibility(int markerUID)
     return marker->visible;
 }
 
+EXPORT_API bool arwQueryMarkerCornerPoints(int markerUID, float points[8])
+{
+    ARMarker *marker;
+
+    if (!gARTK) return false;
+    if (!(marker = gARTK->findMarker(markerUID))) {
+        gARTK->logv(AR_LOG_LEVEL_ERROR, "arwQueryMarkerCornerPoints(): Couldn't locate marker with UID %d.", markerUID);
+        return false;
+    }
+    for (int i = 0; i < 8; i++) points[i] = (float)marker->cornerPoints[i];
+    return marker->visible;
+}
+
 EXPORT_API bool arwQueryMarkerTransformation(int markerUID, float matrix[16])
 {
     ARMarker *marker;
@@ -903,6 +916,7 @@ extern "C" {
 	JNIEXPORT jboolean JNICALL JNIFUNCTION(arwRemoveMarker(JNIEnv *env, jobject obj, jint markerUID));
 	JNIEXPORT jint JNICALL JNIFUNCTION(arwRemoveAllMarkers(JNIEnv *env, jobject obj));
 	JNIEXPORT jboolean JNICALL JNIFUNCTION(arwQueryMarkerVisibility(JNIEnv *env, jobject obj, jint markerUID));
+    JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerCornerPoints(JNIEnv *env, jobject obj, jint markerUID));
 	JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerTransformation(JNIEnv *env, jobject obj, jint markerUID));
 	JNIEXPORT jboolean JNICALL JNIFUNCTION(arwQueryMarkerTransformationStereo(JNIEnv *env, jobject obj, jint markerUID, jfloatArray matrixL, jfloatArray matrixR));
 	JNIEXPORT jint JNICALL JNIFUNCTION(arwGetMarkerPatternCount(JNIEnv *env, jobject obj, int markerUID));
@@ -931,6 +945,8 @@ extern "C" {
     JNIEXPORT jboolean JNICALL JNIFUNCTION(arwGetMarkerOptionBool(JNIEnv *env, jobject obj, jint markerUID, jint option));
     JNIEXPORT jint JNICALL JNIFUNCTION(arwGetMarkerOptionInt(JNIEnv *env, jobject obj, jint markerUID, jint option));
     JNIEXPORT jfloat JNICALL JNIFUNCTION(arwGetMarkerOptionFloat(JNIEnv *env, jobject obj, jint markerUID, jint option));
+    JNIEXPORT jint JNICALL JNIFUNCTION(arwGetMarkerPatternCount(JNIEnv *env, jobject obj, jint markerUID));
+    JNIEXPORT jboolean JNICALL JNIFUNCTION(arwGetMarkerPatternConfig(JNIEnv *env, jobject obj, jint markerUID, jint patternID, jfloatArray matrix, jfloatArray width, jfloatArray height, jintArray imageSizeX, jintArray imageSizeY));
 
 	// Additional Java-specific function not found in the C-API
     JNIEXPORT jboolean JNICALL JNIFUNCTION(arwAcceptVideoImage(JNIEnv *env, jobject obj, jbyteArray pinArray, jint width, jint height, jint cameraIndex, jboolean cameraIsFrontFacing));
@@ -1126,7 +1142,15 @@ JNIEXPORT jboolean JNICALL JNIFUNCTION(arwQueryMarkerVisibility(JNIEnv *env, job
 	return arwQueryMarkerVisibility(markerUID);
 }
 
-JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerTransformation(JNIEnv *env, jobject obj, jint markerUID)) 
+JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerCornerPoints(JNIEnv *env, jobject obj, jint markerUID))
+{
+    float corners[8];
+
+    if (arwQueryMarkerCornerPoints(markerUID, corners)) return glArrayToJava(env, corners, 8);
+    return NULL;
+}
+
+JNIEXPORT jfloatArray JNICALL JNIFUNCTION(arwQueryMarkerTransformation(JNIEnv *env, jobject obj, jint markerUID))
 {
 	float trans[16];
     
@@ -1148,6 +1172,20 @@ JNIEXPORT jboolean JNICALL JNIFUNCTION(arwQueryMarkerTransformationStereo(JNIEnv
 JNIEXPORT jint JNICALL JNIFUNCTION(arwGetMarkerPatternCount(JNIEnv *env, jobject obj, int markerUID)) 
 {
 	return arwGetMarkerPatternCount(markerUID);
+}
+
+JNIEXPORT jboolean JNICALL JNIFUNCTION(arwGetMarkerPatternConfig(JNIEnv *env, jobject obj, jint markerUID, jint patternID, jfloatArray matrix, jfloatArray width, jfloatArray height, jintArray imageSizeX, jintArray imageSizeY)) {
+
+	float w, h;
+	int imsX, imsY;
+	float mat[16];
+
+    if (!arwGetMarkerPatternConfig(markerUID, patternID, mat, &w, &h, &imsX, &imsY)) return false;
+    if (width) env->SetFloatArrayRegion(width, 0, 1, &w);
+    if (height) env->SetFloatArrayRegion(height, 0, 1, &h);
+    if (imageSizeX) env->SetIntArrayRegion(imageSizeX, 0, 1, &imsX);
+    if (imageSizeY) env->SetIntArrayRegion(imageSizeY, 0, 1, &imsY);
+    return true;
 }
 
 JNIEXPORT void JNICALL JNIFUNCTION(arwSetVideoDebugMode(JNIEnv *env, jobject obj, jboolean debug)) 
