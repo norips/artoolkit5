@@ -252,15 +252,11 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
             }
 
             max = -1.0f;
+
             for( jj = -search_size1; jj <= search_size1; jj++ ) {
-              if (  search_size1 * search_size1 + jj*jj <= search_size2*search_size2)
-                continue;
               for (ii = -search_size1; ii <= search_size1 ; ii++){
                 if( ii*ii + jj*jj <= search_size2*search_size2 )
-                  {
-                    ii *=-1;
-                    continue;
-                  }
+                    ii =-ii + 1;
 
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
                 if( !(get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 )) 
