@@ -49,9 +49,13 @@ static int make_template( ARUint8 *imageBW, int xsize, int ysize,
                           int cx, int cy, int ts1, int ts2, float  sd_thresh,
                           float  *template, float  *vlen );
 
-static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
+inline static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
                            float  *template, float  vlen, int ts1, int ts2,
                            int cx, int cy, float  *sim);
+
+inline static int get_similarity_tile( ARUint8 *imageBW, int xsize, int ysize,
+                                       float *template, float vlen, int ts1, int ts2,
+                                       int cx, int cy, float  *sim,int size_sim);
 
 int ar2FreeFeatureMap( AR2FeatureMapT *featureMap )
 {
@@ -153,6 +157,8 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
     float           max, sim;
     int             ii, jj;
     perf_t start, stop, start_2, stop_2;
+    int TILE = 512;
+    float tile_storage[TILE];
 
     perf(&start);
 
@@ -162,7 +168,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
     arMalloc(fimage2,  float,  xsize*ysize);
     arMalloc(template, float , (ts1+ts2+1)*(ts1+ts2+1));
 
-    
+    omp_set_num_threads(2);
 
     fp2 = fimage2;
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
@@ -252,22 +258,39 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
             }
 
             max = -1.0f;
-
+            
             for( jj = -search_size1; jj <= search_size1; jj++ ) {
               for (ii = -search_size1; ii <= search_size1 ; ii++){
                 if( ii*ii + jj*jj <= search_size2*search_size2 )
                     ii =-ii + 1;
 
+                /* Check possible contiguous values */
+                int ii_iter = ii;
+                for(; ii_iter <= search_size1 && ii_iter < TILE+ii; ++ii_iter)
+                  {
+                    if (ii_iter*ii_iter + jj*jj <= search_size2*search_size2)
+                      break;
+                    if (j+jj- ts1 < 0 || j+jj + ts2 >= ysize || i+ii_iter - ts1 < 0 || i+ii_iter + ts2 >= xsize )
+                      break;
+                  }
+                
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
                 if( !(get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 )) 
 #else
-                  if( !(get_similarity(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0) ) 
-#endif
+                  /* Calculate each stencil */
+                  get_similarity_tile(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, tile_storage, ii_iter - ii);
 
-                    if( sim > max ) {
-                        max = sim;
+#endif
+                /* Take first max value found (stencil is guud)*/
+                for(int abc = ii; abc < ii_iter; ++abc)
+                    if( tile_storage[abc-ii] > max ) {
+                      max = tile_storage[abc-ii];
                         if( max > max_sim_thresh ) break;
                     }
+                ii += ii_iter - ii ;
+                /* break dance to the top */
+                if( max > max_sim_thresh ) break;
+
                 }
                 if( max > max_sim_thresh ) break;
             }
@@ -673,7 +696,7 @@ static int make_template( ARUint8 *imageBW, int xsize, int ysize,
 
 inline static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
                            float *template, float vlen, int ts1, int ts2,
-                           int cx, int cy, float  *sim)
+                                  int cx, int cy, float  *sim)
 {
 #if 0
     ARUint8   *ip;
@@ -714,7 +737,7 @@ inline static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
     float     vlen2;
     int       i, j;
 
-    if( cy - ts1 < 0 || cy + ts2 >= ysize || cx - ts1 < 0 || cx + ts2 >= xsize ) return -1;
+    if( cy - ts1 < 0 || cy + ts2 >= ysize || cx - ts1 < 0 || cx + ts2 >= xsize ) {*sim = -1;return -1;}
 
     tp = template;
     sx = sxx = sxy = 0.0f;
@@ -737,11 +760,98 @@ inline static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
     }
 
     vlen2 = sxx - sx*sx/((ts1+ts2+1)*(ts1+ts2+1));
-    if( vlen2 == 0.0f ) return -1;
+    if( vlen2 == 0.0f )
+      {
+        *sim = -1;
+      return -1;
+      }
     vlen2 = sqrtf(vlen2);
 
     *sim = sxy / (vlen * vlen2);
 #endif
+    
+    return 0;
+}
 
+
+inline static int get_similarity_tile( ARUint8 *imageBW, int xsize, int ysize,
+                           float *template, float vlen, int ts1, int ts2,
+                                  int cx, int cy, float  *sim,int size_sim)
+{
+#if 0
+    ARUint8   *ip;
+    float     *tp;
+    float     ave2, w1, w2, vlen2;
+    int       i, j;
+    
+
+    if( cy - ts1 < 0 || cy + ts2 >= ysize || cx - ts1 < 0 || cx + ts2 >= xsize ) return -1;
+
+    
+    ave2 = 0.0f;
+    for( j = -ts1; j <= ts2; j++ ) {
+        ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
+        for( i = -ts1; i <= ts2 ; i++ ) ave2 += *(ip++);
+    }
+    ave2 /= (ts1+ts2+1)*(ts1+ts2+1);
+
+    tp = template;
+    w1 = 0.0f;
+    vlen2 = 0.0f;
+    for( j = -ts1; j <= ts2; j++ ) {
+        ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
+        for( i = -ts1; i <= ts2 ; i++ ) {
+            w2 = (float )(*(ip++)) - ave2;
+            vlen2 += w2 * w2;
+            w1 += *(tp++) * w2;
+        }
+    }
+    if( vlen2 == 0.0f ) return -1;
+
+    vlen2 = sqrtf(vlen2);
+    *sim = w1 / (vlen * vlen2);
+#else
+    ARUint8   *ip;
+    float     *tp;
+    float     sx, sxx, sxy;
+    float     vlen2;
+    int       i, j;
+
+    tp = template;
+
+
+#pragma omp parallel for firstprivate(sx,sxx,sxy,ip,vlen2,vlen,cx)
+    for(int tile = 0; tile < size_sim; ++tile)
+      {
+        int ccx = cx + tile;
+        sx = sxx = sxy = 0.0f;
+        for(int j = 0; j <= ts1+ts2; j++ ) {
+          ip = &imageBW[(cy+j-ts1)*xsize+(ccx-ts1)];
+
+          for(i = 0; i <= ts1+ts2-4 ; i+=4 ) {
+            sx += ip[i]+ip[i+1]+ip[i+2]+ip[i+3];
+            sxx += (ip[i] * ip[i]) + (ip[i+1] * ip[i+1]) + (ip[i+2] * ip[i+2]) + (ip[i+3] * ip[i+3]);
+            sxy += ip[i] * tp[i+(j)*(ts1+ts2+1)] + ip[i+1] * tp[i+1+(j)*(ts1+ts2+1)] +
+              ip[i+2] * tp[i+2+(j)*(ts1+ts2+1)] + ip[i+3] * tp[i+3+(j)*(ts1+ts2+1)];
+          }
+          for(; i <= ts1+ts2 ; ++i ) {
+            sx += ip[i];
+            sxx += ip[i] * ip[i];
+            sxy += ip[i] * tp[i+(j)*(ts1+ts2+1)];
+          }
+
+        }
+
+        vlen2 = sxx - sx*sx/((ts1+ts2+1)*(ts1+ts2+1));
+        if( vlen2 == 0.0f )
+          {
+            sim[tile] = -1;
+            continue;
+          }
+        vlen2 = sqrtf(vlen2);
+
+        sim[tile] = sxy / (vlen * vlen2);
+#endif
+      }
     return 0;
 }
