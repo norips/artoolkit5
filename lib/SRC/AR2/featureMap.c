@@ -41,6 +41,9 @@
 #include <stdlib.h>
 #include <AR2/config.h>
 #include <AR2/featureSet.h>
+#include <sys/time.h>
+
+typedef struct timeval perf_t;
 
 static int make_template( ARUint8 *imageBW, int xsize, int ysize,
                           int cx, int cy, int ts1, int ts2, float  sd_thresh,
@@ -116,6 +119,22 @@ AR2FeatureMapT *ar2ReadFeatureMap( char *filename, char *ext )
     return featureMap;
 }
 
+static void perf(perf_t * p)
+{
+  gettimeofday(p, NULL);
+}
+
+static double perf_diff_ms(const perf_t * begin, perf_t * end)
+{
+  end->tv_sec = end->tv_sec - begin->tv_sec;
+  end->tv_usec = end->tv_usec - begin->tv_usec;
+  if (end->tv_usec < 0) {
+    (end->tv_sec)--;
+    end->tv_usec += 1000000;
+  }
+  return (end->tv_sec*1000000 +end->tv_usec)/1000;
+}
+
 AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
                                   int ts1, int ts2,
                                   int search_size1, int search_size2,
@@ -133,6 +152,9 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
     float           vlen;
     float           max, sim;
     int             ii, jj;
+    perf_t start, stop;
+
+    perf(&start);
 
     xsize = image->xsize;
     ysize = image->ysize;
@@ -140,6 +162,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
     arMalloc(fimage2,  float,  xsize*ysize);
     arMalloc(template, float , (ts1+ts2+1)*(ts1+ts2+1));
 
+    
 
     fp2 = fimage2;
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
@@ -195,10 +218,14 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
 
     fp = fimage;
     fp2 = fimage2;
+
     for( i = 0; i < xsize; i++ ) {
-        *(fp++) = 1.0f;
-        fp2++;
+        fp[i] = 1.0f;
     }
+
+    fp2 +=xsize;
+    fp+=xsize;
+
     for( j = 1; j < ysize-1; j++ ) {
         ARLOGi("\r%4d/%4d.", j+1, ysize); fflush(stdout);
         *(fp++) = 1.0f;
@@ -225,21 +252,23 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
             }
 
             max = -1.0f;
-
+            
             for( jj = -search_size1; jj <= search_size1; jj++ ) {
-              //for( ii = -search_size1; ii <= search_size1; ii++ ) {
               ii = -sqrt(search_size2*search_size2 - jj *jj);
-              ii = ii*ii+jj*jj > search_size2*search_size2 ? ii : ii-1;
+              ii = ii*ii+jj*jj <= search_size2*search_size2 ? ii-1: ii;
               if (ii < -search_size1)
-                ii = -search_size1; 
+                ii = -search_size1;
               for (; ii <= search_size1 ; ii++){
-
-                    if( ii*ii + jj*jj <= search_size2*search_size2 ) continue;
+                if( ii*ii + jj*jj <= search_size2*search_size2 )
+                  {
+                    ii *=-1;
+                    continue;
+                  }
 
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
-                    if( get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 ) continue;
+                if( !(get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 )) 
 #else
-                    if( get_similarity(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 ) continue;
+                      if( !(get_similarity(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0) ) 
 #endif
 
                     if( sim > max ) {
@@ -249,16 +278,16 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
                 }
                 if( max > max_sim_thresh ) break;
             }
-            *(fp++) = (float)max;
-            fp2++;
+            *(fp++) = (float)max; fp2++;
         }
-        *(fp++) = 1.0f;
-        fp2++;
+            *(fp++) = 1.0f; fp2++;
     }
+
+#pragma omp simd
   	for (i = 0; i < xsize; i++) {
-  		*(fp++) = 1.0f;
-  		fp2++;
+  		fp[i] = 1.0f;
   	}
+
     ARLOGi("\n");
     free(fimage2);
     free(template);
@@ -268,6 +297,9 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
     featureMap->xsize = xsize;
     featureMap->ysize = ysize;
 
+    perf(&stop);
+    double time = perf_diff_ms(&start,&stop);
+    fprintf(stderr,"\nTime %.3lf  sec\n\n",time/1000);
     return featureMap;
 }
 
@@ -677,33 +709,17 @@ static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
     tp = template;
     sx = sxx = sxy = 0.0f;
 
-    float tmp_sx = 0.0f;
-    float tmp_sxx = 0.0f;
-    float tmp_sxy = 0.0f;
-    //#pragma omp parallel for private(i) firstprivate(tp,ip) reduction(+:tmp_sx) reduction(+:tmp_sxx) reduction(+:tmp_sxy)
+    //#pragma omp parallel for private(i) firstprivate(tp,ip) reduction(+:sx) reduction(+:sxx) reduction(+:sxy)
     for(int j = -ts1; j <= ts2; j++ ) {
         ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
         #pragma omp simd
         for(int i = -ts1; i <= ts2 ; i++ ) {
-          tmp_sx += *ip;
-          tmp_sxx += *ip * *ip;
-          tmp_sxy += *(ip++) * *(tp++);
+          sx += *ip;
+          sxx += *ip * *ip;
+          sxy += *(ip++) * *(tp++);
         }
     }
 
-    sx += tmp_sx;
-    sxx += tmp_sxx;
-    sxy += tmp_sxy;
-    //       #pragma omp parallel for private(i) firstprivate(tp,ip) reduction(+:sx) reduction(+:sxx) reduction(+:sxy)
-        /* for(int j = -ts1; j <= ts2; j++ ) { */
-        /*   ip = &imageBW[(cy+j)*xsize+(cx-ts1)]; */
-        /*   //          #pragma omp simd */
-        /*   for(i = -ts1; i <= ts2 ; i++ ) { */
-        /*     sx += *ip; */
-        /*     sxx += *ip * *ip; */
-        /*     sxy += *(ip++) * *(tp++); */
-        /*   } */
-        /* } */
     vlen2 = sxx - sx*sx/((ts1+ts2+1)*(ts1+ts2+1));
     if( vlen2 == 0.0f ) return -1;
     vlen2 = sqrtf(vlen2);
