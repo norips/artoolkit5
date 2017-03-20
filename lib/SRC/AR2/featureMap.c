@@ -168,8 +168,6 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
     arMalloc(fimage2,  float,  xsize*ysize);
     arMalloc(template, float , (ts1+ts2+1)*(ts1+ts2+1));
 
-    omp_set_num_threads(2);
-
     fp2 = fimage2;
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
     p = image->imgBWBlur[1];
@@ -273,7 +271,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
                     if (j+jj- ts1 < 0 || j+jj + ts2 >= ysize || i+ii_iter - ts1 < 0 || i+ii_iter + ts2 >= xsize )
                       break;
                   }
-                
+                if (ii_iter == ii) continue;
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
                 if( !(get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 )) 
 #else
@@ -287,7 +285,8 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
                       max = tile_storage[abc-ii];
                         if( max > max_sim_thresh ) break;
                     }
-                ii += ii_iter - ii ;
+                if (ii_iter - ii > 1)
+                  ii += ii_iter - ii - 1;
                 /* break dance to the top */
                 if( max > max_sim_thresh ) break;
 
@@ -820,7 +819,7 @@ inline static int get_similarity_tile( ARUint8 *imageBW, int xsize, int ysize,
     tp = template;
 
 
-#pragma omp parallel for firstprivate(sx,sxx,sxy,ip,vlen2,vlen,cx)
+#pragma omp parallel for firstprivate(sx,sxx,sxy,ip,vlen2,vlen,cx) private(i) num_threads(4) 
     for(int tile = 0; tile < size_sim; ++tile)
       {
         int ccx = cx + tile;
