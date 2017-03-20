@@ -152,7 +152,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
     float           vlen;
     float           max, sim;
     int             ii, jj;
-    perf_t start, stop;
+    perf_t start, stop, start_2, stop_2;
 
     perf(&start);
 
@@ -252,7 +252,6 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
             }
 
             max = -1.0f;
-            
             for( jj = -search_size1; jj <= search_size1; jj++ ) {
               ii = -sqrt(search_size2*search_size2 - jj *jj);
               ii = ii*ii+jj*jj <= search_size2*search_size2 ? ii-1: ii;
@@ -268,7 +267,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
                 if( !(get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 )) 
 #else
-                      if( !(get_similarity(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0) ) 
+                  if( !(get_similarity(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0) ) 
 #endif
 
                     if( sim > max ) {
@@ -278,11 +277,12 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
                 }
                 if( max > max_sim_thresh ) break;
             }
+            
             *(fp++) = (float)max; fp2++;
         }
             *(fp++) = 1.0f; fp2++;
     }
-
+        
 #pragma omp simd
   	for (i = 0; i < xsize; i++) {
   		fp[i] = 1.0f;
@@ -638,9 +638,23 @@ static int make_template( ARUint8 *imageBW, int xsize, int ysize,
     if( cy - ts1 < 0 || cy + ts2 >= ysize || cx - ts1 < 0 || cx + ts2 >= xsize ) return -1;
 
     ave = 0.0f;
+
+
     for( j = -ts1; j <= ts2; j++ ) {
         ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
-        for( i = -ts1; i <= ts2 ; i++ ) ave += *(ip++);
+        #pragma omp simd
+        for( i = 0; i <= ts1+ts2-4 ; i+=4 )
+          {
+            ave += ip[i];
+            ave += ip[i+1];
+            ave += ip[i+2];
+            ave += ip[i+3];
+
+          }
+        for (; i <= ts1+ts2; ++i)
+          {
+            ave += ip[i];
+          }
     }
     ave /= (ts1+ts2+1)*(ts1+ts2+1);
 
@@ -648,22 +662,22 @@ static int make_template( ARUint8 *imageBW, int xsize, int ysize,
     vlen1 = 0.0f;
     for( j = -ts1; j <= ts2; j++ ) {
         ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
-        for( i = -ts1; i <= ts2 ; i++ ) {
-            *tp = (float )(*(ip++)) - ave;
-            vlen1 += *tp * *tp;
-            tp++;
+        #pragma omp simd
+        for( i = 0; i <= ts1+ts2 ; i++ ) {
+          tp[i+(j+ts1)*(ts1+ts2+1)] = (float )ip[i] - ave;
+          vlen1 += tp[i+(j+ts1)*(ts1+ts2+1)] * tp[i+(j+ts1)*(ts1+ts2+1)];
         }
     }
-
+    
     if( vlen1 == 0.0f ) return -1;
     if( vlen1/((ts1+ts2+1)*(ts1+ts2+1)) < sd_thresh*sd_thresh ) return -1;
-
+    
     *vlen = sqrtf(vlen1);
 
     return 0;
 }
 
-static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
+inline static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
                            float *template, float vlen, int ts1, int ts2,
                            int cx, int cy, float  *sim)
 {
@@ -672,9 +686,11 @@ static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
     float     *tp;
     float     ave2, w1, w2, vlen2;
     int       i, j;
+    
 
     if( cy - ts1 < 0 || cy + ts2 >= ysize || cx - ts1 < 0 || cx + ts2 >= xsize ) return -1;
 
+    
     ave2 = 0.0f;
     for( j = -ts1; j <= ts2; j++ ) {
         ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
@@ -708,16 +724,22 @@ static int get_similarity( ARUint8 *imageBW, int xsize, int ysize,
 
     tp = template;
     sx = sxx = sxy = 0.0f;
-
     //#pragma omp parallel for private(i) firstprivate(tp,ip) reduction(+:sx) reduction(+:sxx) reduction(+:sxy)
     for(int j = -ts1; j <= ts2; j++ ) {
         ip = &imageBW[(cy+j)*xsize+(cx-ts1)];
         #pragma omp simd
-        for(int i = -ts1; i <= ts2 ; i++ ) {
-          sx += *ip;
-          sxx += *ip * *ip;
-          sxy += *(ip++) * *(tp++);
+        for(i = 0; i <= ts1+ts2-4 ; i+=4 ) {
+          sx += ip[i]+ip[i+1]+ip[i+2]+ip[i+3];
+          sxx += (ip[i] * ip[i]) + (ip[i+1] * ip[i+1]) + (ip[i+2] * ip[i+2]) + (ip[i+3] * ip[i+3]);
+          sxy += ip[i] * tp[i+(j+ts1)*(ts1+ts2+1)] + ip[i+1] * tp[i+1+(j+ts1)*(ts1+ts2+1)] +
+            ip[i+2] * tp[i+2+(j+ts1)*(ts1+ts2+1)] + ip[i+3] * tp[i+3+(j+ts1)*(ts1+ts2+1)];
         }
+        for(; i <= ts1+ts2 ; ++i ) {
+          sx += ip[i];
+          sxx += ip[i] * ip[i];
+          sxy += ip[i] * tp[i+(j+ts1)*(ts1+ts2+1)];
+        }
+
     }
 
     vlen2 = sxx - sx*sx/((ts1+ts2+1)*(ts1+ts2+1));
