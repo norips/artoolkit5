@@ -42,7 +42,7 @@
 #include <AR2/config.h>
 #include <AR2/featureSet.h>
 #include <sys/time.h>
-
+#include <assert.h>
 typedef struct timeval perf_t;
 
 static int make_template( ARUint8 *imageBW, int xsize, int ysize,
@@ -256,14 +256,14 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
             }
 
             max = -1.0f;
-            
+            int ii_iter;
             for( jj = -search_size1; jj <= search_size1; jj++ ) {
               for (ii = -search_size1; ii <= search_size1 ; ii++){
                 if( ii*ii + jj*jj <= search_size2*search_size2 )
                     ii =-ii + 1;
 
                 /* Check possible contiguous values */
-                int ii_iter = ii;
+                ii_iter = ii; 
                 for(; ii_iter <= search_size1 && ii_iter < TILE+ii; ++ii_iter)
                   {
                     if (ii_iter*ii_iter + jj*jj <= search_size2*search_size2)
@@ -271,7 +271,13 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
                     if (j+jj- ts1 < 0 || j+jj + ts2 >= ysize || i+ii_iter - ts1 < 0 || i+ii_iter + ts2 >= xsize )
                       break;
                   }
+
+                /* ii not usable */
                 if (ii_iter == ii) continue;
+
+                if(ii_iter - ii <= 0)
+                  exit(1);
+                
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
                 if( !(get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 )) 
 #else
@@ -784,7 +790,8 @@ inline static int get_similarity_tile( ARUint8 *imageBW, int xsize, int ysize,
     int       i, j;
     
 
-    if( cy - ts1 < 0 || cy + ts2 >= ysize || cx - ts1 < 0 || cx + ts2 >= xsize ) return -1;
+    /*XXX: You have to check manually you are inside with each element before */
+    //if( cy - ts1 < 0 || cy + ts2 >= ysize || cx - ts1 < 0 || cx + ts2 >= xsize ) return -1;
 
     
     ave2 = 0.0f;
