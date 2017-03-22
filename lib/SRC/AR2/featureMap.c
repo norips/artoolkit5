@@ -323,7 +323,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
 
     perf(&stop);
     double time = perf_diff_ms(&start,&stop);
-    fprintf(stderr,"\nTime %.3lf  sec\n\n",time/1000);
+    fprintf(stderr,"\nTime genmap : %.3lf  sec\n\n",time/1000);
     return featureMap;
 }
 
@@ -462,7 +462,11 @@ AR2FeatureCoordT *ar2SelectFeature2( AR2ImageT *image, AR2FeatureMapT *featureMa
     int                cx, cy;
     int                i, j;
     int                ii;
+    perf_t start, stop;
+    int TILE = 512;
+    float tile_storage[TILE];
 
+    
     if( image->xsize != featureMap->xsize || image->ysize != featureMap->ysize ) return NULL;
 
     occ_size *= 2;
@@ -519,29 +523,52 @@ AR2FeatureCoordT *ar2SelectFeature2( AR2ImageT *image, AR2FeatureMapT *featureMa
 
         min = 1.0f;
         max = -1.0f;
+        int i_iter;
+        int dst;
+        perf(&start);
         for( j = -search_size2; j <= search_size2; j++ ) {
             for( i = -search_size2; i <= search_size2; i++ ) {
-                if( i*i + j*j > search_size2*search_size2 ) continue;
-                if( i == 0 && j == 0 ) continue;
+
+              i_iter = i;
+              for(; i_iter <= search_size2 && i_iter < TILE+i; ++i_iter)
+                {
+
+                  if( i_iter*i_iter + j*j > search_size2*search_size2 ) break;
+                  if( i_iter == 0 && j == 0 ) break;
+                  if( cy+j - ts1 < 0 || cy+j + ts2 >= ysize || cx+i_iter - ts1 < 0 || cx+i_iter + ts2 >= xsize ) break;
+
+                }
+              /* i not usable */
+              if (i_iter == i) continue;
+              dst = abs(i - i_iter);
+              
 
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
                 if( get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, cx+i, cy+j, &sim) < 0 ) continue;
 #else
-                if( get_similarity(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, cx+i, cy+j, &sim) < 0 ) continue;
+                get_similarity_tile(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, cx+i, cy+j, tile_storage, dst);
+
 #endif
 
-                if( sim < min ) {
-                    min = sim;
-                    if( min < min_sim_thresh && min < min_sim ) break;
-                }
-                if( sim > max ) {
-                    max = sim;
-                    if( max > 0.99f ) break;
-                }
+                /* Take first max value found (stencil is guud)*/
+                for(int abc = i; abc < i_iter; ++abc)
+                  {
+                    if( tile_storage[abc-i] < min ) {
+                      min = tile_storage[abc-i];
+                      if( min < min_sim_thresh && min < min_sim ) break;
+                    }
+                    if( tile_storage[abc-i] > max ) {
+                      max = tile_storage[abc-i];
+                      if( max > 0.99f ) break;
+                    }
+                  }
+                if (dst > 1)
+                  i += dst - 1;
+                if( (min < min_sim_thresh && min < min_sim) || max > 0.99f ) break;
             }
             if( (min < min_sim_thresh && min < min_sim) || max > 0.99f ) break;
         }
-
+        perf(&stop);
         if( (min < min_sim_thresh && min < min_sim) || max > 0.99f ) {
             fimage2[cy*xsize+cx] = 1.0f;
             continue;
@@ -586,6 +613,10 @@ AR2FeatureCoordT *ar2SelectFeature2( AR2ImageT *image, AR2FeatureMapT *featureMa
     free( template );
     free( fimage2 );
 
+    
+    double time = perf_diff_ms(&start,&stop);
+    fprintf(stderr,"\nTime genmap : %.3lf  sec\n\n",time/1000);
+    
     return coord;
 }
 
@@ -824,11 +855,13 @@ inline static int get_similarity_tile( ARUint8 *imageBW, int xsize, int ysize,
     float     sx, sxx, sxy;
     float     vlen2;
     int       i, j;
-
+    int nbthread = 4;
     tp = template;
 
+    if(size_sim < 4)
+      nbthread = 1;
 
-#pragma omp parallel for firstprivate(sx,sxx,sxy,ip,vlen2,vlen,cx) private(i) num_threads(4) 
+#pragma omp parallel for firstprivate(sx,sxx,sxy,ip,vlen2,vlen,cx) private(i) num_threads(nbthread) 
     for(int tile = 0; tile < size_sim; ++tile)
       {
         int ccx = cx + tile;
