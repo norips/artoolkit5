@@ -257,6 +257,7 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
 
             max = -1.0f;
             int ii_iter;
+            int dst;
             for( jj = -search_size1; jj <= search_size1; jj++ ) {
               for (ii = -search_size1; ii <= search_size1 ; ii++){
                 if( ii*ii + jj*jj <= search_size2*search_size2 )
@@ -272,17 +273,18 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
                       break;
                   }
 
+
                 /* ii not usable */
                 if (ii_iter == ii) continue;
 
-                if(ii_iter - ii <= 0)
-                  exit(1);
-                
+                dst = abs(ii - ii_iter);
+
+
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
                 if( !(get_similarity(image->imgBWBlur[1], xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, &sim) < 0 )) 
 #else
                   /* Calculate each stencil */
-                  get_similarity_tile(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, tile_storage, ii_iter - ii);
+                  get_similarity_tile(image->imgBW, xsize, ysize, template, vlen, ts1, ts2, i+ii, j+jj, tile_storage, dst);
 
 #endif
                 /* Take first max value found (stencil is guud)*/
@@ -291,8 +293,8 @@ AR2FeatureMapT *ar2GenFeatureMap( AR2ImageT *image,
                       max = tile_storage[abc-ii];
                         if( max > max_sim_thresh ) break;
                     }
-                if (ii_iter - ii > 1)
-                  ii += ii_iter - ii - 1;
+                if (dst > 1)
+                  ii += dst - 1;
                 /* break dance to the top */
                 if( max > max_sim_thresh ) break;
 
