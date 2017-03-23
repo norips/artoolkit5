@@ -465,7 +465,7 @@ AR2FeatureCoordT *ar2SelectFeature2( AR2ImageT *image, AR2FeatureMapT *featureMa
     perf_t start, stop;
     int TILE = 512;
     float tile_storage[TILE];
-
+    perf(&start);
     
     if( image->xsize != featureMap->xsize || image->ysize != featureMap->ysize ) return NULL;
 
@@ -491,21 +491,43 @@ AR2FeatureCoordT *ar2SelectFeature2( AR2ImageT *image, AR2FeatureMapT *featureMa
     arMalloc( coord, AR2FeatureCoordT, max_feature_num );
     *num = 0;
 
+    int nb_threads = 4;
+    int *i_tab = calloc(nb_threads,sizeof(int));
+    int *j_tab = calloc(nb_threads,sizeof(int));
+    float *min_tab = calloc(nb_threads,sizeof(float));
+    fp2 = fimage2;
+
     while( *num < max_feature_num ) {
 
-        min_sim = max_sim_thresh;
-        fp2 = fimage2;
-        cx = cy = -1;
-        for( j = 0; j < ysize; j++ ) {
-            for( i = 0; i < xsize; i++ ) {
-                if( *fp2 < min_sim ) {
-                    min_sim = *fp2;
-                    cx = i;
-                    cy = j;
+        /* Each thread search for a local min */
+#pragma omp parallel shared(min_tab,j_tab,i_tab,fp2) num_threads(nb_threads)
+        {
+          int thread_num = omp_get_thread_num();
+          min_tab[thread_num] = max_sim_thresh;
+          i_tab[thread_num] = j_tab[thread_num] = -1;
+#pragma omp for
+            for(int j_t = 0; j_t < ysize; j_t++ ) {
+              for(int i_t = 0; i_t < xsize; i_t++ ) {
+                if( fp2[i_t+j_t*xsize] < min_tab[thread_num] ) {
+                  min_tab[thread_num] = fp2[i_t+j_t*xsize];
+                  i_tab[thread_num] = i_t;
+                  j_tab[thread_num] = j_t;
                 }
-                fp2++;
+              }
             }
+
         }
+        /* Find which thread got the real min */
+        int min_thread = 0;
+        for(int nthread = 0; nthread < nb_threads ; ++nthread)
+          if (min_tab[nthread] < min_tab[min_thread])
+            min_thread = nthread;
+
+        cx = i_tab[min_thread];
+        cy = j_tab[min_thread];
+        min_sim = min_tab[min_thread];
+        /* useless       fp2 = &fimage2[cy*xsize+cx-1];*/
+
         if( cx == -1 ) break;
 
 #if AR2_CAPABLE_ADAPTIVE_TEMPLATE
@@ -525,7 +547,7 @@ AR2FeatureCoordT *ar2SelectFeature2( AR2ImageT *image, AR2FeatureMapT *featureMa
         max = -1.0f;
         int i_iter;
         int dst;
-        perf(&start);
+
         for( j = -search_size2; j <= search_size2; j++ ) {
             for( i = -search_size2; i <= search_size2; i++ ) {
 
@@ -568,7 +590,7 @@ AR2FeatureCoordT *ar2SelectFeature2( AR2ImageT *image, AR2FeatureMapT *featureMa
             }
             if( (min < min_sim_thresh && min < min_sim) || max > 0.99f ) break;
         }
-        perf(&stop);
+
         if( (min < min_sim_thresh && min < min_sim) || max > 0.99f ) {
             fimage2[cy*xsize+cx] = 1.0f;
             continue;
@@ -613,9 +635,9 @@ AR2FeatureCoordT *ar2SelectFeature2( AR2ImageT *image, AR2FeatureMapT *featureMa
     free( template );
     free( fimage2 );
 
-    
+    perf(&stop);
     double time = perf_diff_ms(&start,&stop);
-    fprintf(stderr,"\nTime genmap : %.3lf  sec\n\n",time/1000);
+    fprintf(stderr,"\nTime select feature : %.3lf  sec\n\n",time/1000);
     
     return coord;
 }
