@@ -345,13 +345,13 @@ then
     if [ "$CLANGCC" = "y" ]
     then
         CC="clang"
-        CXX="clang++ -std=c++11 -stdlib=libc++"
-        CFLAG="-O3 -fPIC -march=core2 -DHAVE_NFT=1"
+        CXX="clang++ -std=c++11 -stdlib=libc++ -fopenmp  "
+        CFLAG="-O3 -fPIC -march=native -DHAVE_NFT=1 -fopenmp "
         STDCXXLIB="-lc++"
     else
-        CC="gcc"
-        CXX="g++ -std=c++11 "
-        CFLAG="-O3 -fPIC -march=core2 -DHAVE_NFT=1"
+        CC="gcc  -fopenmp"
+        CXX="g++ -std=c++11 -fopenmp "
+        CFLAG="-O3 -fPIC -march=native -DHAVE_NFT=1 -fopenmp "
         STDCXXLIB="-lstdc++"
     fi
 
@@ -372,7 +372,7 @@ then
             LDFLAG="-L/usr/lib"
             ;;
         x86_64)
-            CFLAG="-O3 -fPIC -march=core2 -DHAVE_NFT=1"
+            CFLAG="-O3 -fPIC -march=native -DHAVE_NFT=1"
             LDFLAG="-L/usr/lib/x86_64-linux-gnu -L/usr/lib64"
             ;;
         *)
